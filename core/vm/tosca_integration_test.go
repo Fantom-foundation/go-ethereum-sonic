@@ -1,80 +1,70 @@
 package vm
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/core/tracing"
-	"github.com/stretchr/testify/assert"
 )
 
-func TestInterpreterFactory(t *testing.T) {
-	evm := &EVM{}
+func TestGetInterpreter_ProducesInterpretersBasedOnConfiguration(t *testing.T) {
+	var (
+		a         = &EVMInterpreter{}
+		b         = &EVMInterpreter{}
+		none      InterpreterFactory
+		useA      = func(*EVM) Interpreter { return a }
+		useB      = func(*EVM) Interpreter { return b }
+		A         = func(i Interpreter) bool { return i == a }
+		B         = func(i Interpreter) bool { return i == b }
+		Fresh     = func(i Interpreter) bool { return i != nil && i != a && i != b }
+		noTracing = false
+		Tracing   = true
+	)
 
-	interpreter := NewInterpreter("", evm)
-	if interpreter == nil {
-		t.Error("Expected interpreter to be created, but got nil")
-	}
-	interpreter = NewInterpreter("geth", evm)
-	if interpreter == nil {
-		t.Error("Expected interpreter to be created, but got nil")
-	}
-	asserted := assert.Panics(t, func() { NewInterpreter("invalid", evm) })
-	if !asserted {
-		t.Error("Expected panic with invalid interpreter name")
-	}
-}
+	// Defines a complete "truth" table for the GetInterpreter function.
+	tests := []struct {
+		tracing               bool
+		interpreter           InterpreterFactory
+		interpreterForTracing InterpreterFactory
+		want                  func(Interpreter) bool
+	}{
+		// tracing, interpreter, interpreterForTracing, want
+		{noTracing, none, none, Fresh},
+		{noTracing, none, useA, Fresh},
+		{noTracing, none, useB, Fresh},
 
-func TestInterpreterFactory_RegisterInterpreter(t *testing.T) {
-	evm := &EVM{}
-	correctFactoryIsCalled := false
+		{noTracing, useA, none, A},
+		{noTracing, useA, useA, A},
+		{noTracing, useA, useB, A},
 
-	RegisterInterpreterFactory("newInterpreter", func(evm *EVM) Interpreter {
-		correctFactoryIsCalled = true
-		return NewEVMInterpreter(evm)
-	})
+		{noTracing, useB, none, B},
+		{noTracing, useB, useA, B},
+		{noTracing, useB, useB, B},
 
-	interpreter := NewInterpreter("newInterpreter", evm)
-	if interpreter == nil {
-		t.Error("Expected interpreter to be created, but got nil")
-	}
-	if !correctFactoryIsCalled {
-		t.Error("Wrong interpreter factory has been called")
-	}
-}
+		{Tracing, none, none, Fresh},
+		{Tracing, none, useA, A},
+		{Tracing, none, useB, B},
 
-func TestInterpreterRegistry_NameCollisionsAreDetected(t *testing.T) {
-	const testInterpreter = "test-evm-001"
-	factory := func(evm *EVM) Interpreter { return nil }
-	err := RegisterInterpreterFactory(testInterpreter, factory)
-	if err != nil {
-		t.Error("Expected no error when registering new interpreter")
-	}
-	err = RegisterInterpreterFactory(testInterpreter, factory)
-	if !errors.Is(err, ErrInterpreterNameCollision) {
-		t.Errorf("Expected error %v, but got %v", ErrInterpreterNameCollision, err)
-	}
-}
+		{Tracing, useA, none, A},
+		{Tracing, useA, useA, A},
+		{Tracing, useA, useB, B},
 
-func TestGetInterpreter_ProducesGethInstanceWhenTracingIsEnabled(t *testing.T) {
-	const testInterpreter = "test-evm-002"
-	evm := &EVM{}
-	evm.Config.InterpreterImpl = testInterpreter
-
-	RegisterInterpreterFactory(testInterpreter, func(evm *EVM) Interpreter {
-		return nil
-	})
-
-	// Without tracer, the requested interpreter is provided.
-	interpreter := getInterpreter(evm)
-	if _, ok := interpreter.(*EVMInterpreter); ok {
-		t.Errorf("Expected interpreter from factory, but got Geth interpreter")
+		{Tracing, useB, none, B},
+		{Tracing, useB, useA, A},
+		{Tracing, useB, useB, B},
 	}
 
-	// With tracer, the Geth interpreter is provided.
-	evm.Config.Tracer = &tracing.Hooks{}
-	interpreter = getInterpreter(evm)
-	if _, ok := interpreter.(*EVMInterpreter); !ok {
-		t.Error("Expected Geth interpreter to be created, but got different")
+	for i, test := range tests {
+		config := Config{
+			Interpreter:           test.interpreter,
+			InterpreterForTracing: test.interpreterForTracing,
+		}
+		if test.tracing {
+			config.Tracer = &tracing.Hooks{}
+		}
+		evm := &EVM{Config: config}
+		got := getInterpreter(evm)
+		if !test.want(got) {
+			t.Errorf("unexpected interpreter, case %d -  isA: %t, isB: %t, isFresh: %t", i, A(got), B(got), Fresh(got))
+		}
 	}
 }

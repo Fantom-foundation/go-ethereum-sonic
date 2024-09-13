@@ -2,9 +2,6 @@ package vm
 
 import (
 	"errors"
-	"fmt"
-	"strings"
-	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/holiman/uint256"
@@ -56,9 +53,7 @@ type CallContextInterceptor interface {
 	StaticCall(env *EVM, me ContractRef, addr common.Address, input []byte, gas uint64) ([]byte, uint64, error)
 }
 
-// -- Interpreter Implementation Registry --
-
-const ErrInterpreterNameCollision = constError("interpreter with same name already registered")
+// -- Interpreter --
 
 // Interpreter defines an interface for different interpreter implementations.
 type Interpreter interface {
@@ -69,56 +64,19 @@ type Interpreter interface {
 
 type InterpreterFactory func(evm *EVM) Interpreter
 
-var interpreterRegistryLock sync.Mutex
-var interpreterRegistry = map[string]InterpreterFactory{}
-
-func RegisterInterpreterFactory(name string, factory InterpreterFactory) error {
-	if factory == nil {
-		return fmt.Errorf("interpreter factory for %q is nil", name)
-	}
-	interpreterRegistryLock.Lock()
-	defer interpreterRegistryLock.Unlock()
-	name = strings.ToLower(name)
-	if _, found := interpreterRegistry[name]; found {
-		return ErrInterpreterNameCollision
-	}
-	interpreterRegistry[name] = factory
-	return nil
-}
-
-func NewInterpreter(name string, evm *EVM) Interpreter {
-	name = strings.ToLower(name)
-	interpreterRegistryLock.Lock()
-	factory, found := interpreterRegistry[name]
-	interpreterRegistryLock.Unlock()
-	if !found {
-		panic(fmt.Sprintf("no factory for interpreter %q registered", name))
-	}
-	return factory(evm)
-}
-
 func getInterpreter(evm *EVM) Interpreter {
 	// No Tosca interpreter is supporting tracing yet. Thus, if
 	// there is a tracer, we need to use Geth's EVMInterpreter.
-	if evm.Config.Tracer != nil {
-		return NewEVMInterpreter(evm)
+	config := &evm.Config
+	if config.Tracer != nil {
+		if config.InterpreterForTracing != nil {
+			return config.InterpreterForTracing(evm)
+		}
 	}
-	// Use the interpreter specified in the configuration.
-	return NewInterpreter(evm.Config.InterpreterImpl, evm)
-}
-
-func init() {
-	factory := func(evm *EVM) Interpreter {
-		return NewEVMInterpreter(evm)
+	if config.Interpreter != nil {
+		return config.Interpreter(evm)
 	}
-	RegisterInterpreterFactory("", factory)
-	RegisterInterpreterFactory("geth", factory)
-}
-
-type constError string
-
-func (e constError) Error() string {
-	return string(e)
+	return NewEVMInterpreter(evm)
 }
 
 // --- Abstracted interpreter with step execution ---
