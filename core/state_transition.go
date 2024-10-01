@@ -445,6 +445,13 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		ret, st.gasRemaining, vmerr = st.evm.Call(sender, st.to(), msg.Data, st.gasRemaining, value)
 	}
 
+	// Fantom modification: for all transactions that are not internal transactions, charge 10% of remaining gas.
+	// This should avoid gas-overspending in transactions, filling up blocks.
+	// TODO: make this configurable.
+	if msg.From != (common.Address{}) {
+		st.gasRemaining = st.gasRemaining - st.gasRemaining/10
+	}
+
 	var gasRefund uint64
 	if !rules.IsLondon {
 		// Before EIP-3529: refunds were capped to gasUsed / 2
