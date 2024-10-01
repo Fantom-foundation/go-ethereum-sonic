@@ -241,7 +241,10 @@ func (st *StateTransition) buyGas() error {
 		balanceCheck.SetUint64(st.msg.GasLimit)
 		balanceCheck = balanceCheck.Mul(balanceCheck, st.msg.GasFeeCap)
 	}
-	balanceCheck.Add(balanceCheck, st.msg.Value)
+
+	// Note: insufficient balance for **topmost** call isn't a consensus error in Opera, unlike Ethereum
+	// Such transaction will revert and consume sender's gas
+	//balanceCheck.Add(balanceCheck, st.msg.Value)
 
 	if st.evm.ChainConfig().IsCancun(st.evm.Context.BlockNumber, st.evm.Context.Time) {
 		if blobGas := st.blobGasUsed(); blobGas > 0 {
@@ -379,6 +382,8 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	// 3. the amount of gas required is available in the block
 	// 4. the purchased gas is enough to cover intrinsic usage
 	// 5. there is no overflow when calculating intrinsic gas
+	//
+	// Not in Fantom:
 	// 6. caller has enough balance to cover asset transfer for **topmost** call
 
 	// Check clauses 1-3, buy gas if everything is correct
@@ -419,9 +424,11 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	if overflow {
 		return nil, fmt.Errorf("%w: address %v", ErrInsufficientFundsForTransfer, msg.From.Hex())
 	}
-	if !value.IsZero() && !st.evm.Context.CanTransfer(st.state, msg.From, value) {
-		return nil, fmt.Errorf("%w: address %v", ErrInsufficientFundsForTransfer, msg.From.Hex())
-	}
+	/*
+		if !value.IsZero() && !st.evm.Context.CanTransfer(st.state, msg.From, value) {
+			return nil, fmt.Errorf("%w: address %v", ErrInsufficientFundsForTransfer, msg.From.Hex())
+		}
+	*/
 
 	// Check whether the init code size has been exceeded.
 	if rules.IsShanghai && contractCreation && len(msg.Data) > params.MaxInitCodeSize {
