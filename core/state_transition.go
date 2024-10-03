@@ -237,10 +237,12 @@ func (st *StateTransition) buyGas() error {
 	mgval := new(big.Int).SetUint64(st.msg.GasLimit)
 	mgval.Mul(mgval, st.msg.GasPrice)
 	balanceCheck := new(big.Int).Set(mgval)
-	if st.msg.GasFeeCap != nil {
-		balanceCheck.SetUint64(st.msg.GasLimit)
-		balanceCheck = balanceCheck.Mul(balanceCheck, st.msg.GasFeeCap)
-	}
+	/*
+		if st.msg.GasFeeCap != nil {
+			balanceCheck.SetUint64(st.msg.GasLimit)
+			balanceCheck = balanceCheck.Mul(balanceCheck, st.msg.GasFeeCap)
+		}
+	*/
 
 	// Note: insufficient balance for **topmost** call isn't a consensus error in Opera, unlike Ethereum
 	// Such transaction will revert and consume sender's gas
@@ -473,7 +475,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	}
 	effectiveTipU256, _ := uint256.FromBig(effectiveTip)
 
-	if st.evm.Config.NoBaseFee && msg.GasFeeCap.Sign() == 0 && msg.GasTipCap.Sign() == 0 {
+	if true || (st.evm.Config.NoBaseFee && msg.GasFeeCap.Sign() == 0 && msg.GasTipCap.Sign() == 0) {
 		// Skip fee payment when NoBaseFee is set and the fee fields
 		// are 0. This avoids a negative effectiveTip being applied to
 		// the coinbase when simulating calls.
