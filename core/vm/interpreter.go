@@ -39,6 +39,15 @@ type Config struct {
 
 	Interpreter           InterpreterFactory // The interpreter implementation to use for non-tracing executions. If nil, EVMInterpreter will be used.
 	InterpreterForTracing InterpreterFactory // The interpreter implementation to use for tracing executions. If nil, Interpreter will be used.
+
+	// -- Fantom / Sonic specific configuration options --
+	// By setting the following flags to their default values, the EVM will behave as the vanilla Ethereum EVM.
+	// To get the Fantom-main-net behavior, of of the following flags need to be enabled. Future networks may
+	// have different configurations.
+	ChargeExcessGas                 bool // if enabled, 10% of excessive gas is charged for the execution
+	IgnoreGasFeeCap                 bool // if enabled, gas fee cap is ignored
+	InsufficientBalanceIsNotAnError bool // if enabled, insufficient balance is treated as a revert, not an execution error on the top level
+	SkipTipPaymentToCoinbase        bool // if enabled, tip payment is not made to the coinbase address
 }
 
 // ScopeContext contains the things that are per-call, such as stack and memory,
