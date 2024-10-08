@@ -386,8 +386,6 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	// 3. the amount of gas required is available in the block
 	// 4. the purchased gas is enough to cover intrinsic usage
 	// 5. there is no overflow when calculating intrinsic gas
-	//
-	// Not in Fantom:
 	// 6. caller has enough balance to cover asset transfer for **topmost** call
 
 	// Check clauses 1-3, buy gas if everything is correct
