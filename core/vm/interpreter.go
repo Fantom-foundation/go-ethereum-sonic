@@ -42,7 +42,7 @@ type Config struct {
 
 	// -- Fantom / Sonic specific configuration options --
 	// By setting the following flags to their default values, the EVM will behave as the vanilla Ethereum EVM.
-	// To get the Fantom-main-net behavior, of of the following flags need to be enabled. Future networks may
+	// To get the Fantom-main-net behavior, all of the following flags need to be enabled. Future networks may
 	// have different configurations.
 	ChargeExcessGas                 bool // if enabled, 10% of excessive gas is charged for the execution
 	IgnoreGasFeeCap                 bool // if enabled, gas fee cap is ignored
