@@ -22,9 +22,12 @@ import (
 	"errors"
 	"fmt"
 	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/state/snapshot"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/triedb"
+	"github.com/ethereum/go-ethereum/triedb/hashdb"
+	"github.com/ethereum/go-ethereum/triedb/pathdb"
 	"math/big"
 	"strconv"
 	"strings"
@@ -464,24 +467,64 @@ type StateTestState struct {
 
 // MakePreState creates a state containing the given allocation.
 func MakePreState(db ethdb.Database, accounts types.GenesisAlloc, snapshotter bool, scheme string) StateTestState {
-	factory := NewGethFactory(db, snapshotter, scheme)
+	factory := newGethFactory(db, snapshotter, scheme)
 	return MakePreStateWith(accounts, factory)
 }
 
 // MakePreStateWith creates a state containing the given allocation.
 // It allows for injecting a custom TestContextFactory configuring database.
 func MakePreStateWith(accounts types.GenesisAlloc, fact TestContextFactory) StateTestState {
-	st := fact.NewTestStateDB(func(statedb TestStateDB) {
-		for addr, a := range accounts {
-			statedb.SetCode(addr, a.Code)
-			statedb.SetNonce(addr, a.Nonce)
-			statedb.SetBalance(addr, uint256.MustFromBig(a.Balance), tracing.BalanceChangeUnspecified)
-			for k, v := range a.Storage {
-				statedb.SetState(addr, k, v)
-			}
-		}
-	})
+	st := fact.NewTestStateDB(accounts)
 	return st
+}
+
+// gethFactory is a factory for creating geth database.
+type gethFactory struct {
+	db          ethdb.Database
+	snapshotter bool
+	scheme      string
+}
+
+// newGethFactory creates a new gethFactory.
+func newGethFactory(db ethdb.Database, snapshotter bool, scheme string) TestContextFactory {
+	return gethFactory{db, snapshotter, scheme}
+}
+
+// NewTestStateDB creates a new StateTestState using geth database.
+func (f gethFactory) NewTestStateDB(accounts types.GenesisAlloc) StateTestState {
+	tconf := &triedb.Config{Preimages: true}
+	if f.scheme == rawdb.HashScheme {
+		tconf.HashDB = hashdb.Defaults
+	} else {
+		tconf.PathDB = pathdb.Defaults
+	}
+	triedb := triedb.NewDatabase(f.db, tconf)
+	sdb := state.NewDatabaseWithNodeDB(f.db, triedb)
+	statedb, _ := state.New(types.EmptyRootHash, sdb, nil)
+	for addr, a := range accounts {
+		statedb.SetCode(addr, a.Code)
+		statedb.SetNonce(addr, a.Nonce)
+		statedb.SetBalance(addr, uint256.MustFromBig(a.Balance), tracing.BalanceChangeUnspecified)
+		for k, v := range a.Storage {
+			statedb.SetState(addr, k, v)
+		}
+	}
+	// Commit and re-open to start with a clean state.
+	root, _ := statedb.Commit(0, false)
+
+	// If snapshot is requested, initialize the snapshotter and use it in state.
+	var snaps *snapshot.Tree
+	if f.snapshotter {
+		snapconfig := snapshot.Config{
+			CacheSize:  1,
+			Recovery:   false,
+			NoBuild:    false,
+			AsyncBuild: false,
+		}
+		snaps, _ = snapshot.New(snapconfig, f.db, triedb, root)
+	}
+	statedb, _ = state.New(root, sdb, snaps)
+	return StateTestState{statedb, triedb, snaps}
 }
 
 // Close should be called when the state is no longer needed, ie. after running the test.
