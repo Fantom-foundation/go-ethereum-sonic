@@ -21,13 +21,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/ethereum/go-ethereum/core/rawdb"
-	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/state/snapshot"
-	"github.com/ethereum/go-ethereum/ethdb"
-	"github.com/ethereum/go-ethereum/triedb"
-	"github.com/ethereum/go-ethereum/triedb/hashdb"
-	"github.com/ethereum/go-ethereum/triedb/pathdb"
 	"math/big"
 	"strconv"
 	"strings"
@@ -37,12 +30,19 @@ import (
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/state/snapshot"
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/triedb"
+	"github.com/ethereum/go-ethereum/triedb/hashdb"
+	"github.com/ethereum/go-ethereum/triedb/pathdb"
 	"github.com/holiman/uint256"
 	"golang.org/x/crypto/sha3"
 )
@@ -196,7 +196,7 @@ func (t *StateTest) checkError(subtest StateSubtest, err error) error {
 
 // Run executes a specific subtest and verifies the post-state and logs
 func (t *StateTest) Run(subtest StateSubtest, vmconfig vm.Config, snapshotter bool, scheme string, postCheck func(err error, st *StateTestState)) (result error) {
-	factory := NewGethFactory(rawdb.NewMemoryDatabase(), snapshotter, scheme)
+	factory := newGethFactory(rawdb.NewMemoryDatabase(), snapshotter, scheme)
 	return t.RunWith(subtest, vmconfig, factory, postCheck)
 }
 
@@ -235,7 +235,7 @@ func (t *StateTest) RunWith(subtest StateSubtest, vmconfig vm.Config, factory Te
 // RunNoVerify runs a specific subtest and returns the statedb and post-state root.
 // Remember to call state.Close after verifying the test result!
 func (t *StateTest) RunNoVerify(subtest StateSubtest, vmconfig vm.Config, snapshotter bool, scheme string) (st StateTestState, root common.Hash, err error) {
-	factory := NewGethFactory(rawdb.NewMemoryDatabase(), snapshotter, scheme)
+	factory := newGethFactory(rawdb.NewMemoryDatabase(), snapshotter, scheme)
 	return t.RunNoVerifyWith(subtest, vmconfig, factory)
 }
 
