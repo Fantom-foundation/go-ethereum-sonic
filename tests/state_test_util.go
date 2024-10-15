@@ -25,24 +25,25 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/state/snapshot"
+	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/ethereum/go-ethereum/triedb"
+	"github.com/ethereum/go-ethereum/triedb/hashdb"
+	"github.com/ethereum/go-ethereum/triedb/pathdb"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/rawdb"
-	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/state/snapshot"
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/ethereum/go-ethereum/triedb"
-	"github.com/ethereum/go-ethereum/triedb/hashdb"
-	"github.com/ethereum/go-ethereum/triedb/pathdb"
 	"github.com/holiman/uint256"
 	"golang.org/x/crypto/sha3"
 )
@@ -196,7 +197,14 @@ func (t *StateTest) checkError(subtest StateSubtest, err error) error {
 
 // Run executes a specific subtest and verifies the post-state and logs
 func (t *StateTest) Run(subtest StateSubtest, vmconfig vm.Config, snapshotter bool, scheme string, postCheck func(err error, st *StateTestState)) (result error) {
-	st, root, err := t.RunNoVerify(subtest, vmconfig, snapshotter, scheme)
+	factory := newGethFactory(rawdb.NewMemoryDatabase(), snapshotter, scheme)
+	return t.RunWith(subtest, vmconfig, factory, postCheck)
+}
+
+// RunWith executes a specific subtest and verifies the post-state and logs.
+// It allows for injecting a custom TestContextFactory configuring state processor components.
+func (t *StateTest) RunWith(subtest StateSubtest, vmconfig vm.Config, factory TestContextFactory, postCheck func(err error, st *StateTestState)) (result error) {
+	st, root, err := t.RunNoVerifyWith(subtest, vmconfig, factory)
 	// Invoke the callback at the end of function for further analysis.
 	defer func() {
 		postCheck(result, &st)
@@ -222,13 +230,20 @@ func (t *StateTest) Run(subtest StateSubtest, vmconfig vm.Config, snapshotter bo
 	if logs := rlpHash(st.StateDB.Logs()); logs != common.Hash(post.Logs) {
 		return fmt.Errorf("post state logs hash mismatch: got %x, want %x", logs, post.Logs)
 	}
-	st.StateDB, _ = state.New(root, st.StateDB.Database(), st.Snapshots)
 	return nil
 }
 
 // RunNoVerify runs a specific subtest and returns the statedb and post-state root.
 // Remember to call state.Close after verifying the test result!
 func (t *StateTest) RunNoVerify(subtest StateSubtest, vmconfig vm.Config, snapshotter bool, scheme string) (st StateTestState, root common.Hash, err error) {
+	factory := newGethFactory(rawdb.NewMemoryDatabase(), snapshotter, scheme)
+	return t.RunNoVerifyWith(subtest, vmconfig, factory)
+}
+
+// RunNoVerifyWith runs a specific subtest and returns the statedb and post-state root.
+// Remember to call state.Close after verifying the test result!
+// It allows for injecting a custom TestContextFactory configuring state processor components.
+func (t *StateTest) RunNoVerifyWith(subtest StateSubtest, vmconfig vm.Config, factory TestContextFactory) (st StateTestState, root common.Hash, err error) {
 	config, eips, err := GetChainConfig(subtest.Fork)
 	if err != nil {
 		return st, common.Hash{}, UnsupportedForkError{subtest.Fork}
@@ -236,7 +251,7 @@ func (t *StateTest) RunNoVerify(subtest StateSubtest, vmconfig vm.Config, snapsh
 	vmconfig.ExtraEips = eips
 
 	block := t.genesis(config).ToBlock()
-	st = MakePreState(rawdb.NewMemoryDatabase(), t.json.Pre, snapshotter, scheme)
+	st = MakePreStateWith(t.json.Pre, factory)
 
 	var baseFee *big.Int
 	if config.IsLondon(new(big.Int)) {
@@ -446,21 +461,46 @@ func vmTestBlockHash(n uint64) common.Hash {
 
 // StateTestState groups all the state database objects together for use in tests.
 type StateTestState struct {
-	StateDB   *state.StateDB
+	StateDB   TestStateDB
 	TrieDB    *triedb.Database
 	Snapshots *snapshot.Tree
 }
 
 // MakePreState creates a state containing the given allocation.
 func MakePreState(db ethdb.Database, accounts types.GenesisAlloc, snapshotter bool, scheme string) StateTestState {
+	factory := newGethFactory(db, snapshotter, scheme)
+	return MakePreStateWith(accounts, factory)
+}
+
+// MakePreStateWith creates a state containing the given allocation.
+// It allows for injecting a custom TestContextFactory configuring database.
+func MakePreStateWith(accounts types.GenesisAlloc, fact TestContextFactory) StateTestState {
+	st := fact.NewTestStateDB(accounts)
+	return st
+}
+
+// gethFactory is a factory for creating geth database.
+type gethFactory struct {
+	db          ethdb.Database
+	snapshotter bool
+	scheme      string
+}
+
+// newGethFactory creates a new gethFactory.
+func newGethFactory(db ethdb.Database, snapshotter bool, scheme string) TestContextFactory {
+	return gethFactory{db, snapshotter, scheme}
+}
+
+// NewTestStateDB creates a new StateTestState using geth database.
+func (f gethFactory) NewTestStateDB(accounts types.GenesisAlloc) StateTestState {
 	tconf := &triedb.Config{Preimages: true}
-	if scheme == rawdb.HashScheme {
+	if f.scheme == rawdb.HashScheme {
 		tconf.HashDB = hashdb.Defaults
 	} else {
 		tconf.PathDB = pathdb.Defaults
 	}
-	triedb := triedb.NewDatabase(db, tconf)
-	sdb := state.NewDatabaseWithNodeDB(db, triedb)
+	triedb := triedb.NewDatabase(f.db, tconf)
+	sdb := state.NewDatabaseWithNodeDB(f.db, triedb)
 	statedb, _ := state.New(types.EmptyRootHash, sdb, nil)
 	for addr, a := range accounts {
 		statedb.SetCode(addr, a.Code)
@@ -475,14 +515,14 @@ func MakePreState(db ethdb.Database, accounts types.GenesisAlloc, snapshotter bo
 
 	// If snapshot is requested, initialize the snapshotter and use it in state.
 	var snaps *snapshot.Tree
-	if snapshotter {
+	if f.snapshotter {
 		snapconfig := snapshot.Config{
 			CacheSize:  1,
 			Recovery:   false,
 			NoBuild:    false,
 			AsyncBuild: false,
 		}
-		snaps, _ = snapshot.New(snapconfig, db, triedb, root)
+		snaps, _ = snapshot.New(snapconfig, f.db, triedb, root)
 	}
 	statedb, _ = state.New(root, sdb, snaps)
 	return StateTestState{statedb, triedb, snaps}
