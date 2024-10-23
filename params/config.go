@@ -60,6 +60,7 @@ var (
 		ShanghaiTime:                  newUint64(1681338455),
 		CancunTime:                    newUint64(1710338135),
 		Ethash:                        new(EthashConfig),
+		MaxCodeSize:                   MaxCodeSize,
 	}
 	// HoleskyChainConfig contains the chain parameters to run a node on the Holesky test network.
 	HoleskyChainConfig = &ChainConfig{
@@ -85,6 +86,7 @@ var (
 		ShanghaiTime:                  newUint64(1696000704),
 		CancunTime:                    newUint64(1707305664),
 		Ethash:                        new(EthashConfig),
+		MaxCodeSize:                   MaxCodeSize,
 	}
 	// SepoliaChainConfig contains the chain parameters to run a node on the Sepolia test network.
 	SepoliaChainConfig = &ChainConfig{
@@ -110,6 +112,7 @@ var (
 		ShanghaiTime:                  newUint64(1677557088),
 		CancunTime:                    newUint64(1706655072),
 		Ethash:                        new(EthashConfig),
+		MaxCodeSize:                   MaxCodeSize,
 	}
 	// GoerliChainConfig contains the chain parameters to run a node on the Görli test network.
 	GoerliChainConfig = &ChainConfig{
@@ -136,6 +139,7 @@ var (
 			Period: 15,
 			Epoch:  30000,
 		},
+		MaxCodeSize: MaxCodeSize,
 	}
 	// AllEthashProtocolChanges contains every protocol change (EIPs) introduced
 	// and accepted by the Ethereum core developers into the Ethash consensus.
@@ -165,6 +169,7 @@ var (
 		TerminalTotalDifficultyPassed: true,
 		Ethash:                        new(EthashConfig),
 		Clique:                        nil,
+		MaxCodeSize:                   MaxCodeSize,
 	}
 
 	AllDevChainProtocolChanges = &ChainConfig{
@@ -186,6 +191,7 @@ var (
 		CancunTime:                    newUint64(0),
 		TerminalTotalDifficulty:       big.NewInt(0),
 		TerminalTotalDifficultyPassed: true,
+		MaxCodeSize:                   MaxCodeSize,
 	}
 
 	// AllCliqueProtocolChanges contains every protocol change (EIPs) introduced
@@ -216,6 +222,7 @@ var (
 		TerminalTotalDifficultyPassed: false,
 		Ethash:                        nil,
 		Clique:                        &CliqueConfig{Period: 0, Epoch: 30000},
+		MaxCodeSize:                   MaxCodeSize,
 	}
 
 	// TestChainConfig contains every protocol change (EIPs) introduced
@@ -246,6 +253,7 @@ var (
 		TerminalTotalDifficultyPassed: false,
 		Ethash:                        new(EthashConfig),
 		Clique:                        nil,
+		MaxCodeSize:                   MaxCodeSize,
 	}
 
 	// MergedTestChainConfig contains every protocol change (EIPs) introduced
@@ -276,6 +284,7 @@ var (
 		TerminalTotalDifficultyPassed: true,
 		Ethash:                        new(EthashConfig),
 		Clique:                        nil,
+		MaxCodeSize:                   MaxCodeSize,
 	}
 
 	// NonActivatedConfig defines the chain configuration without activating
@@ -306,6 +315,7 @@ var (
 		TerminalTotalDifficultyPassed: false,
 		Ethash:                        new(EthashConfig),
 		Clique:                        nil,
+		MaxCodeSize:                   MaxCodeSize,
 	}
 	TestRules = TestChainConfig.Rules(new(big.Int), false, 0)
 )
@@ -368,6 +378,8 @@ type ChainConfig struct {
 	// Various consensus engines
 	Ethash *EthashConfig `json:"ethash,omitempty"`
 	Clique *CliqueConfig `json:"clique,omitempty"`
+
+	MaxCodeSize int // Maximum bytecode to permit for a contract
 }
 
 // EthashConfig is the consensus engine configs for proof-of-work based sealing.
