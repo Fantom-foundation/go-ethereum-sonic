@@ -50,6 +50,14 @@ type BlockTest struct {
 	json btJSON
 }
 
+func (t *BlockTest) Data() BtJSON {
+	return BtJSON{t.json}
+}
+
+type BtJSON struct {
+	btJSON
+}
+
 // UnmarshalJSON implements json.Unmarshaler interface.
 func (t *BlockTest) UnmarshalJSON(in []byte) error {
 	return json.Unmarshal(in, &t.json)
