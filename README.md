@@ -7,7 +7,7 @@ https://pkg.go.dev/badge/github.com/ethereum/go-ethereum
 )](https://pkg.go.dev/github.com/ethereum/go-ethereum?tab=doc)
 [![Go Report Card](https://goreportcard.com/badge/github.com/ethereum/go-ethereum)](https://goreportcard.com/report/github.com/ethereum/go-ethereum)
 [![Travis](https://app.travis-ci.com/ethereum/go-ethereum.svg?branch=master)](https://app.travis-ci.com/github/ethereum/go-ethereum)
-[![Discord](https://img.shields.io/badge/discord-join%20chat-blue.svg)](https://discord.gg/nthXNEv)
+[![Discord](https://img.shields.io/badge/discord-join%20chat-blue.svg)](https://discord.com/invite/nthXNEv)
 
 Automated builds are available for stable releases and the unstable master branch. Binary
 archives are published at https://geth.ethereum.org/downloads/.
@@ -101,7 +101,7 @@ the main network, but with play-Ether only.
 $ geth --goerli console
 ```
 
-The `console` subcommand has the same meaning as above and is equally
+The `console` subcomand has the same meaning as above and is equally
 useful on the testnet too.
 
 Specifying the `--goerli` flag, however, will reconfigure your `geth` instance a bit:
@@ -132,7 +132,7 @@ configuration file via:
 $ geth --config /path/to/your_config.toml
 ```
 
-To get an idea of how the file should look like you can use the `dumpconfig` subcommand to
+To get an idea of how the file should look like you can use the `dumpconfig` subcomand to
 export your existing configuration:
 
 ```shell
@@ -161,7 +161,7 @@ Do not forget `--http.addr 0.0.0.0`, if you want to access RPC from other contai
 and/or hosts. By default, `geth` binds to the local interface and RPC endpoints are not
 accessible from the outside.
 
-### Programmatically interfacing `geth` nodes
+### Programatically interfacing `geth` nodes
 
 As a developer, sooner rather than later you'll want to start interacting with `geth` and the
 Ethereum network via your own programs and not manually through the console. To aid
